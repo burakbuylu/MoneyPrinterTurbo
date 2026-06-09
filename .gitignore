@@ -1,5 +1,8 @@
 .DS_Store
 /config.toml
+# YouTube OAuth client secret — asla commit etme (sir sizar)
+/client_secret.json
+youtube_token.json
 /storage/
 /.idea/
 /app/services/__pycache__

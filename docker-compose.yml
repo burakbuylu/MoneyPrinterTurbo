@@ -22,3 +22,13 @@ services:
     command: [ "python3", "main.py" ]
     volumes: *common-volumes
     restart: always
+  autopilot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: "moneyprinterturbo-autopilot"
+    # X saatte bir titles.txt'den video uretip YouTube'a yukler.
+    # Etkinlestirmek icin config.toml'da autopilot_enabled = true yapin.
+    command: [ "python3", "-m", "app.autopilot_worker" ]
+    volumes: *common-volumes
+    restart: always
