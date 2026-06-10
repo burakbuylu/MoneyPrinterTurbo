@@ -769,7 +769,9 @@ Please note that you must use English for generating video search terms; Chinese
 # 过长内容后调用方还需要二次裁剪。
 SOCIAL_PLATFORMS = {
     "tiktok": {"title_max": 100, "caption_max": 2200, "hashtag_count": 5},
-    "youtube_shorts": {"title_max": 100, "caption_max": 5000, "hashtag_count": 3},
+    # YouTube Shorts: SEO icin daha fazla keyword-tag uretelim (description
+    # hashtag'leri + upload tag'leri olarak kullaniliyor).
+    "youtube_shorts": {"title_max": 100, "caption_max": 5000, "hashtag_count": 10},
     "instagram_reels": {"title_max": 125, "caption_max": 2200, "hashtag_count": 8},
     "facebook_reels": {"title_max": 125, "caption_max": 2200, "hashtag_count": 5},
 }
@@ -880,6 +882,24 @@ def _normalize_hashtags(raw, count: int) -> List[str]:
     return result
 
 
+# Platforma ozel SEO yonergeleri. YouTube icin arama (search) optimizasyonu
+# on planda: keyword'u one al, ilk satira hook + keyword, sonunda CTA.
+_SEO_GUIDANCE = {
+    "youtube_shorts": """
+## SEO Guidance (YouTube — search optimized)
+- Put the single most important SEARCH KEYWORD near the START of the "title".
+- "title" must be an honest, high-CTR hook. No misleading clickbait, no ALL-CAPS spam, no emoji spam (at most one emoji).
+- "caption" is the YouTube video DESCRIPTION. Its FIRST sentence must contain the primary keyword AND the hook, because YouTube shows only the first ~100 characters before "...more".
+- Weave the primary keyword plus 2-3 secondary/long-tail keywords naturally across 2-4 short sentences. Write for humans, do not keyword-stuff.
+- End "caption" with a clear call to action (subscribe, like, or comment).
+- "hashtags" must be searchable keyword tags for the topic: mix broad terms and specific long-tail terms. Lowercase, no spaces. Do NOT add "#shorts" (it is added automatically).""",
+}
+
+
+def _seo_guidance(platform: str) -> str:
+    return _SEO_GUIDANCE.get(platform, "")
+
+
 def build_social_metadata_prompt(
     video_subject: str,
     video_script: str = "",
@@ -896,20 +916,22 @@ def build_social_metadata_prompt(
     spec = SOCIAL_PLATFORMS[platform]
     label = SOCIAL_PLATFORM_LABELS.get(platform, platform)
     language_instruction = _social_language_instruction(language)
+    seo_guidance = _seo_guidance(platform)
 
     prompt = f"""
-# Role: Short-Video Social Media Copywriter
+# Role: Short-Video SEO Copywriter & Growth Specialist
 
 ## Goal
-Write engaging publishing metadata for a short video that will be posted on {label}.
+Write search-optimized, high click-through publishing metadata for a short video that will be posted on {label}. Maximize discoverability (search + suggested) and click-through rate.
 
 ## Constraints
 1. Respond ONLY with a single valid minified JSON object. No markdown, no code fences, no commentary.
 2. The JSON must contain exactly these keys: "title", "caption", "hashtags".
-3. "title": a catchy hook, at most {spec['title_max']} characters.
-4. "caption": an engaging description that ends with a call to action, at most {spec['caption_max']} characters. Do not put hashtags inside the caption.
-5. "hashtags": a JSON array of exactly {spec['hashtag_count']} strings. Each must start with "#", contain no spaces, and be relevant to the topic and to {label}.
+3. "title": a keyword-front-loaded, high-CTR hook, at most {spec['title_max']} characters.
+4. "caption": an SEO-optimized description that ends with a call to action, at most {spec['caption_max']} characters. Do not put hashtags inside the caption.
+5. "hashtags": a JSON array of exactly {spec['hashtag_count']} strings. Each must start with "#", contain no spaces, and be a searchable keyword relevant to the topic and to {label}.
 6. {language_instruction}
+{seo_guidance}
 
 ## Output Example
 {{"title":"...","caption":"...","hashtags":["#example","#video"]}}

@@ -65,21 +65,36 @@ def fetch_bgm(tags: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]
         logger.warning("jamendo_client_id not set; skipping Jamendo fetch.")
         return None, None
 
-    tags = (tags or config.app.get("jamendo_tags", "happy,upbeat") or "").strip()
+    tags = (
+        tags
+        or config.app.get("jamendo_tags", "energetic,upbeat,happy,motivational,electronic")
+        or ""
+    ).strip()
+    # Tempo: hareketli muzik icin hizli parçalar (config'den ayarlanabilir).
+    speed = str(config.app.get("jamendo_speed", "high+veryhigh") or "").strip()
+    # Seslendirme (TTS) ile cakismamasi icin varsayilan enstrumantal.
+    vocal = str(config.app.get("jamendo_vocal", "instrumental") or "").strip()
 
     params = {
         "client_id": client_id,
         "format": "json",
         "limit": 1,
-        # Rastgelelik icin populer havuzdan rastgele offset.
-        "offset": random.randint(0, 199),
+        # Enerjik havuzdan rastgele seç (fuzzy arama az sonuç dondurebilir,
+        # bu yuzden offset araligini dar tutuyoruz).
+        "offset": random.randint(0, 49),
         "audioformat": "mp32",
         "audiodlformat": "mp32",
         "include": "musicinfo licenses",
         "order": "popularity_total",
     }
     if tags:
-        params["tags"] = tags
+        # fuzzytags = OR/fuzzy eslesme ('+' ayrac); strict `tags` (AND) sad/dar
+        # sonuc veriyordu. Daha hareketli, daha genis havuz icin fuzzytags.
+        params["fuzzytags"] = tags.replace(",", "+").replace(" ", "")
+    if speed:
+        params["speed"] = speed
+    if vocal:
+        params["vocalinstrumental"] = vocal
 
     try:
         resp = requests.get(
