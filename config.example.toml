@@ -73,6 +73,8 @@ autopilot_paragraph_number = 1
 autopilot_bgm_volume = 0.2
 # Worker basladiginda hemen bir tur calissin mi (yoksa ilk interval'i bekler)
 autopilot_run_on_start = false
+# YouTube'a basarili yukleme sonrasi task klasorunu sil (disk sismesin)
+autopilot_delete_after_upload = true
 
 # 支持的提供商 (Supported providers):
 #   openai

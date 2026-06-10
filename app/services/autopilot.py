@@ -15,6 +15,7 @@ WebUI tek seferlik tetik icin run_one() cagirir.
 
 import json
 import os
+import shutil
 import time
 from typing import List, Optional, Tuple
 
@@ -261,6 +262,10 @@ def run_one() -> dict:
                 entry["status"] = "uploaded"
                 entry["video_id"] = up.get("video_id")
                 entry["url"] = up.get("url")
+                # Upload basarili -> diskte tutmaya gerek yok; task klasorunu temizle.
+                if config.app.get("autopilot_delete_after_upload", True):
+                    _cleanup_task(task_id)
+                    entry["cleaned"] = True
             else:
                 entry["status"] = "upload_failed"
                 entry["error"] = up.get("error")
@@ -286,6 +291,17 @@ def run_one() -> dict:
     state["history"] = state["history"][-200:]  # tarihçeyi sinirla
     save_state(state)
     return entry
+
+
+def _cleanup_task(task_id: str):
+    """Upload sonrasi task klasorunu (video, ses, materyaller) sil; disk sismesin."""
+    try:
+        task_path = utils.task_dir(task_id)
+        if os.path.isdir(task_path):
+            shutil.rmtree(task_path, ignore_errors=True)
+            logger.info(f"Autopilot: cleaned task dir {task_path}")
+    except Exception as e:
+        logger.warning(f"Autopilot: task cleanup failed for {task_id}: {e}")
 
 
 def _record_failure(state: dict, norm: str):
