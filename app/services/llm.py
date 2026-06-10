@@ -416,7 +416,15 @@ def _generate_response(prompt: str) -> str:
                 )
                 result = response.json()
                 logger.info(result)
-                return _normalize_text_response(result["result"]["response"], llm_provider)
+                # Cloudflare Workers AI yanit formati modele gore degisir:
+                # - chat / OpenAI-uyumlu modeller -> result.choices[0].message.content
+                # - eski text modelleri            -> result.response
+                inner = result.get("result", {}) or {}
+                if isinstance(inner, dict) and inner.get("choices"):
+                    content = inner["choices"][0]["message"]["content"]
+                else:
+                    content = inner.get("response", "") if isinstance(inner, dict) else ""
+                return _normalize_text_response(content, llm_provider)
 
             if llm_provider == "ernie":
                 response = requests.post(
