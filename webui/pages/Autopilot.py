@@ -151,6 +151,41 @@ with y3:
         value=bool(config.app.get("youtube_made_for_kids", False)),
     )
 
+st.subheader("Otomatik baslik + altyazi")
+a1, a2, a3 = st.columns(3)
+with a1:
+    auto_titles = st.checkbox(
+        "Basliklari otomatik uret",
+        value=bool(config.app.get("autopilot_auto_titles", False)),
+        help="Kuyruk bosaldiginda konuya gore SEO basliklari kendisi uretir",
+    )
+    auto_titles_count = st.number_input(
+        "Her seferinde kac baslik",
+        min_value=1, max_value=50,
+        value=int(config.app.get("autopilot_auto_titles_count", 5) or 5),
+    )
+with a2:
+    topic = st.text_input(
+        "Kanal konusu / nisi",
+        value=str(config.app.get("autopilot_topic", "") or ""),
+        placeholder="orn: guncel arabalar, otomobil incelemeleri 2026",
+        help="Otomatik baslik uretimi bu konuya gore yapilir",
+    )
+with a3:
+    sub_bg_opts = ["rounded", "box", "none"]
+    cur_sub_bg = str(config.app.get("autopilot_subtitle_background", "rounded"))
+    subtitle_background = st.selectbox(
+        "Altyazi arkaplani",
+        options=sub_bg_opts,
+        index=sub_bg_opts.index(cur_sub_bg) if cur_sub_bg in sub_bg_opts else 0,
+        help="rounded = harfleri saran dar siyah plaka (onerilen), box = tam kutu, none = yok",
+    )
+    stroke_width = st.slider(
+        "Altyazi siyah kenar kalinligi",
+        min_value=0.0, max_value=5.0, step=0.5,
+        value=float(config.app.get("autopilot_subtitle_stroke_width", 1.5) or 1.5),
+    )
+
 if st.button("💾 Ayarlari kaydet", type="primary"):
     config.app["autopilot_interval_hours"] = int(interval)
     config.app["autopilot_default_aspect"] = aspect
@@ -164,6 +199,11 @@ if st.button("💾 Ayarlari kaydet", type="primary"):
     config.app["youtube_enabled"] = bool(youtube_enabled)
     config.app["youtube_privacy"] = privacy
     config.app["youtube_made_for_kids"] = bool(made_for_kids)
+    config.app["autopilot_auto_titles"] = bool(auto_titles)
+    config.app["autopilot_auto_titles_count"] = int(auto_titles_count)
+    config.app["autopilot_topic"] = topic.strip()
+    config.app["autopilot_subtitle_background"] = subtitle_background
+    config.app["autopilot_subtitle_stroke_width"] = float(stroke_width)
     _save_config()
     st.success("Ayarlar kaydedildi (config.toml).")
 

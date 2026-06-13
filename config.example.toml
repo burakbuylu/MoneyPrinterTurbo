@@ -81,6 +81,21 @@ autopilot_run_on_start = false
 # YouTube'a basarili yukleme sonrasi task klasorunu sil (disk sismesin)
 autopilot_delete_after_upload = true
 
+# --- Otomatik baslik uretimi ---
+# Kuyruk (titles.txt) bosaldiginda konuya gore kendi SEO basliklarini uretsin mi
+autopilot_auto_titles = false
+# Kanal konusu/nisi (orn. arabalar). Bos ise otomatik baslik uretilmez.
+autopilot_topic = ""
+# Kuyruk her bosaldiginda kac yeni baslik uretilsin
+autopilot_auto_titles_count = 5
+
+# --- Altyazi arkaplan stili ---
+# "rounded" = metni saran dar siyah plaka (onerilen), "box" = tam genislik siyah
+# kutu (eski), "none" = arkaplan yok (sadece siyah kenar/stroke)
+autopilot_subtitle_background = "rounded"
+# Altyazi siyah kenar (stroke) kalinligi
+autopilot_subtitle_stroke_width = 1.5
+
 # 支持的提供商 (Supported providers):
 #   openai
 #   aihubmix   (OpenAI-compatible AI model gateway)

@@ -15,6 +15,7 @@ WebUI tek seferlik tetik icin run_one() cagirir.
 
 import json
 import os
+import re
 import shutil
 import time
 from typing import List, Optional, Tuple
@@ -113,6 +114,70 @@ def read_titles() -> List[Tuple[str, Optional[str]]]:
     return out
 
 
+def append_titles(lines: List[str]):
+    """Yeni basliklari titles.txt sonuna ekle (kalici + WebUI'de gorunur)."""
+    if not lines:
+        return
+    current = read_titles_raw()
+    sep = "" if (not current or current.endswith("\n")) else "\n"
+    block = "\n".join(line.strip() for line in lines if line.strip())
+    write_titles_raw(f"{current}{sep}{block}\n")
+
+
+def _parse_generated_titles(text: str, count: int) -> List[str]:
+    """LLM ciktisindaki basliklari temizle (numara/madde/tirnak at)."""
+    out = []
+    for line in (text or "").splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        s = re.sub(r"^\s*\d+[\.\)\-:]\s*", "", s)  # "1. " "1) " "1- "
+        s = re.sub(r"^\s*[\-\*•]\s*", "", s)        # madde isaretleri
+        s = s.strip().strip('"').strip("'").strip()
+        # JSON/markdown artiklari atla
+        if not s or s.startswith(("{", "}", "[", "]", "#", "```")):
+            continue
+        out.append(s)
+        if len(out) >= count:
+            break
+    return out
+
+
+def generate_titles(topic: str, count: int = 5, language: str = "auto") -> List[str]:
+    """
+    Kanal konusuna gore YouTube'da trend olmaya yatkin SEO basliklar uret.
+    Otomasyon kuyrugu bosaldiginda kendi kendine besler.
+    """
+    topic = (topic or "").strip()
+    if not topic:
+        return []
+    lang_line = (
+        ""
+        if (not language or language.lower() == "auto")
+        else f"Write the titles in this language: {language}."
+    )
+    prompt = f"""You are a YouTube growth strategist for a channel about: {topic}.
+
+Generate {count} fresh, highly clickable, SEO-optimized YouTube video titles that are likely to trend RIGHT NOW for this niche.
+
+Rules:
+- Output ONLY the titles, each on its own line. No numbering, no quotes, no bullets, no extra commentary.
+- Front-load the main search keyword. Combine curiosity with clear value.
+- No misleading clickbait, no ALL-CAPS, at most one emoji per title.
+- Keep each title under 80 characters.
+- Make them specific and current: new models, comparisons, prices, reviews, top-lists, tips, "2026", etc.
+{lang_line}
+""".strip()
+    try:
+        resp = llm._generate_response(prompt)
+    except Exception as e:
+        logger.error(f"Autopilot title generation failed: {e}")
+        return []
+    titles = _parse_generated_titles(resp, count)
+    logger.info(f"Autopilot generated {len(titles)} titles for topic '{topic}'.")
+    return titles
+
+
 # --------------------------------------------------------------------- state
 def _empty_state() -> dict:
     return {"processed": [], "failures": {}, "history": [], "last_run_ts": 0}
@@ -160,8 +225,25 @@ def _resolve_aspect(aspect: Optional[str]) -> str:
     return normalize_aspect(str(config.app.get("autopilot_default_aspect", "9:16"))) or "9:16"
 
 
+def _subtitle_bg():
+    """
+    Altyazi arkaplan stili (config: autopilot_subtitle_background):
+      - "rounded": metni saran dar siyah plaka (varsayilan, en hos durur)
+      - "box":     tam genislikte siyah kutu (eski davranis)
+      - "none":    arkaplan yok, sadece siyah kenar (stroke)
+    Returns: (text_background_color, rounded_subtitle_background)
+    """
+    mode = str(config.app.get("autopilot_subtitle_background", "rounded")).lower().strip()
+    if mode == "none":
+        return False, False
+    if mode == "box":
+        return "#000000", False
+    return "#000000", True  # rounded (default)
+
+
 def _build_params(title: str, aspect: str) -> VideoParams:
     voice = str(config.app.get("autopilot_voice_name", "") or "").strip() or DEFAULT_VOICE
+    text_bg, rounded_bg = _subtitle_bg()
     params = VideoParams(
         video_subject=title,
         video_aspect=aspect,
@@ -171,6 +253,10 @@ def _build_params(title: str, aspect: str) -> VideoParams:
         paragraph_number=int(config.app.get("autopilot_paragraph_number", 1) or 1),
         bgm_volume=float(config.app.get("autopilot_bgm_volume", 0.2) or 0.2),
         subtitle_enabled=True,
+        text_background_color=text_bg,
+        rounded_subtitle_background=rounded_bg,
+        stroke_color="#000000",
+        stroke_width=float(config.app.get("autopilot_subtitle_stroke_width", 1.5) or 1.5),
     )
     return params
 
@@ -188,6 +274,33 @@ def _build_description(meta: dict, attribution: Optional[str]) -> str:
     return "\n\n".join(parts)
 
 
+def _maybe_autogenerate(titles, state) -> Optional[Tuple[str, Optional[str]]]:
+    """Kuyruk bosaldiginda konuya gore yeni basliklar uret, titles.txt'ye ekle, sirayi sec."""
+    if not config.app.get("autopilot_auto_titles", False):
+        return None
+    topic = str(config.app.get("autopilot_topic", "") or "").strip()
+    if not topic:
+        logger.warning("autopilot_auto_titles is on but autopilot_topic is empty.")
+        return None
+    count = int(config.app.get("autopilot_auto_titles_count", 5) or 5)
+    lang = str(config.app.get("autopilot_video_language", "") or "") or "auto"
+
+    new_titles = generate_titles(topic, count, lang)
+    if not new_titles:
+        return None
+
+    # Mevcut basliklar + islenenlerle cakisanlari ele.
+    existing = {_norm_title(t) for t, _ in titles} | set(state.get("processed", []))
+    fresh = [t for t in new_titles if _norm_title(t) not in existing]
+    if not fresh:
+        logger.info("Autopilot: generated titles all duplicates; skipping.")
+        return None
+
+    append_titles(fresh)
+    logger.success(f"Autopilot: added {len(fresh)} auto-generated titles to queue.")
+    return next_pending(read_titles(), state)
+
+
 def run_one() -> dict:
     """Tek bir basligi uret ve (yapilandirilmissa) yukle. Sonuc dict'i doner."""
     _refresh_config()
@@ -196,6 +309,10 @@ def run_one() -> dict:
     state["last_run_ts"] = time.time()
 
     pick = next_pending(titles, state)
+    if not pick:
+        # Kuyruk bos: auto-title acik ve konu varsa kendi basliklarini uret.
+        pick = _maybe_autogenerate(titles, state)
+        titles = read_titles()
     if not pick:
         logger.info("Autopilot: no pending titles.")
         save_state(state)
